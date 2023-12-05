@@ -5,6 +5,7 @@ import redis
 import sys
 import csv
 import os
+from datetime import datetime
 
 app = Flask(__name__)
 app.secret_key = 'We_Like_Tchaî_To_Go_To_Gym'
@@ -19,7 +20,7 @@ user = redis.Redis(
 	decode_responses=True
 )
 
-transaction = redis.Redis(
+transactionRedis = redis.Redis(
 	host='172.17.0.1',
 	port=6379,
 	db=1,
@@ -27,7 +28,7 @@ transaction = redis.Redis(
 )
 #Decomment the following line if you want to reset the database
 user.flushdb()
-transaction.flushdb()
+transactionRedis.flushdb()
 
 @app.route('/register-<name>', methods=['GET','POST'])
 def register(name):
@@ -71,37 +72,72 @@ def showUsers():
         print(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
-@app.route('/transaction-<a>-<b>-<amount>', methods=['GET'])
-def transaction(a,b,amount):
-	user_a = request.args[a]
-	user_b = request.args[b]
-	if user_a!=None and user_b!= None:
-		if user_a['balance']>amount:
-			user_a['balance'] -= amount
-			user_b['balance'] += amount
-			return "Transaction successful, " + str(a) + " sent " + str(amount) + " to " + str(b) + "!"
-		return "Not enough money for transaction"
-	return "At least one user does not exist"
+@app.route('/transaction-<int:a>-<int:b>-<int:amount>', methods=['POST'])
+def transaction(a, b, amount):
+    try:
+        user_a_id = str(a)
+        user_b_id = str(b)
+
+        # Check if both users exist in the database
+        if user.exists('name' + user_a_id) and user.exists('name' + user_b_id):
+            user_a_balance = int(user.get('balance' + user_a_id) or 0)
+            user_b_balance = int(user.get('balance' + user_b_id) or 0)
+
+            # Check if user_a has enough balance for the transaction
+            if user_a_balance >= amount:
+                # Update user balances after successful transaction
+                user.set('balance' + user_a_id, user_a_balance - amount)
+                user.set('balance' + user_b_id, user_b_balance + amount)
+
+                # Record transaction details in the 'transaction' Redis database
+                timestamp = datetime.now().timestamp()
+                transaction_key = f"transaction_{timestamp}"
+                transaction_data = f"{user_a_id} gave {amount} to {user_b_id}"
+                transactionRedis.set(transaction_key, transaction_data)
+
+                return f"Transaction successful. User {user_a_id} sent {amount} to User {user_b_id}!"
+            else:
+                return "Not enough money for transaction."
+        else:
+            return "At least one user does not exist."
+    except Exception as e:
+        print(f"Error during transaction: {str(e)}")
+        return 'An error occurred during the transaction.'
+
+
 
 @app.route('/history', methods=["GET"])
 def history():
-	keys = transaction.keys('*')
-	lines = []
-	for key in keys:
-		lines.append(redis.get(key))
-	return transaction #### VERIFIER QUE CA MARCHE
+    try:
+        keys = sorted(transactionRedis.keys('*'), key=lambda x: float(x.split('_')[-1]))
+        lines = []
 
-@app.route('/history-<a>', methods=['GET'])
+        for key in keys:
+            lines.append(transactionRedis.get(key))
+
+        return jsonify(lines)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/history-<int:a>', methods=["GET"])
 def historyOf(a):
-	if os.path.exists(file):
-		txt = ""
-		with open(file,'r',newline='') as csvfile:
-			reader = csv.reader(csvfile, delimiter=";")
-			for i, line in enumerate(reader):
-				if line[0]==str(a) or line[1]==str(a):
-					txt+= str(line)+"\n"
-			return txt
-	return "No file"	
+    try:
+        user_id = str(a)
+
+        # Retrieve all transaction keys from the database
+        keys = transactionRedis.keys('transaction_*')
+
+        # Filter transactions for the specified user
+        user_transactions = [
+            transactionRedis.get(key) for key in keys if user_id in transactionRedis.get(key)
+        ]
+
+        return jsonify(user_transactions)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == '__main__':
 	if len(sys.argv) > 1:
