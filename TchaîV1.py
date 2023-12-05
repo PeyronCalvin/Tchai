@@ -31,40 +31,45 @@ transaction.flushdb()
 
 @app.route('/register-<name>', methods=['GET','POST'])
 def register(name):
-	global id_user
-	#With the data entered in the frontend we create a new user and put it in the database if the username is unique
-	if request.method == 'POST':
-		if not name or name=="":
-			return 'Name must not be null !'
-		else:
-			if user.get('nameAlreadyTaken')!=None and name+str(id) in user.get('nameAlreadyTaken'):
-				return 'Registering is not possible with this name, remove the numbers'
-			else:
-				user.lpush('nameAlreadyTaken', str(name)+str(id))
-				user.set('id',id_user)
-				user.set('name'+str(id_user),name)
-				user.set('balance'+str(id_user),0)
-				id_user+=1
-				return 'done !'
-	else:
-		r = requests.post("http://127.0.0.1:5000/register-"+str(name))
-		return "It's done !"
+    name = str(name)
+
+    try:
+        # Retrieve the current user ID from the Redis database
+        id_user = int(user.get('id') or 0)
+
+        # Check if the user name is already taken
+        if user.sismember('nameAlreadyTaken', name):
+            return 'Registration is not possible with this name, choose another one.'
+
+        # Update the user data in the database
+        user.sadd('nameAlreadyTaken', name)
+        user.set('id', id_user + 1)
+        user.set('name' + str(id_user), name)
+        user.set('balance' + str(id_user), 1000)
+
+        return 'Registration successful!'
+    except Exception as e:
+        # Log the error for troubleshooting
+        print(f"Error during registration: {str(e)}")
+        return 'An error occurred during registration.'
 
 @app.route('/users', methods=['GET'])
 def showUsers():
-	try:
-		keys = user.keys("name*")
-		data = {}
-		for key in keys:
-			if key != 'nameAlreadyTaken':
-				user_id = key.split('name')[-1]
-				name = user.get(key)
-				balance = str(user.get('balance' + user_id))
-				data[user_id] = {'name': name, 'balance': balance}
-			return jsonify(data)
-	except Exception as e:
-		print(f"Error: {str(e)}")
-		return jsonify({"error": str(e)}), 500
+    try:
+        keys = user.keys("name*")
+        data = {}
+
+        for key in keys:
+            if key != 'nameAlreadyTaken':
+                user_id = key.split('name')[-1]
+                name = user.get(key)
+                balance = str(user.get('balance' + user_id))
+                data[user_id] = {'name': name, 'balance': balance}
+
+        return jsonify(data)  # Move this line outside the loop
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/transaction-<a>-<b>-<amount>', methods=['GET'])
 def transaction(a,b,amount):
