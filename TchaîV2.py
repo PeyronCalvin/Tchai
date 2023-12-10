@@ -3,6 +3,7 @@ from flask_cors import CORS
 import redis
 import sys
 from datetime import datetime
+from hashlib import sha256
 
 app = Flask(__name__)
 app.secret_key = 'We_Like_Tchaî_To_Go_To_Gym'
@@ -108,8 +109,17 @@ def transaction(a, b, amount):
                 # Record transaction details in the 'transaction' Redis database
                 timestamp = datetime.now().timestamp()
                 transaction_key = f"transaction_{timestamp}"
-                transaction_data = f"{user_a_id} gave {amount} to {user_b_id}"
-                transactionRedis.set(transaction_key, transaction_data)
+                transaction_data = f"{user_a_id} gave {amount} to {user_b_id} at {timestamp}"
+
+                # Create a hash for the transaction tuple (P1, P2, t, a)
+                transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount})"
+                transaction_hash = sha256(transaction_tuple.encode()).hexdigest()
+
+                # Append the hash to the transaction data
+                transaction_data_with_hash = f"{transaction_data}, hash: {transaction_hash}"
+
+                # Set the transaction data in Redis
+                transactionRedis.set(transaction_key, transaction_data_with_hash)
 
                 return f"Transaction successful. User {user_a_id} sent {amount} to User {user_b_id}!"
             else:
@@ -119,6 +129,47 @@ def transaction(a, b, amount):
     except Exception as e:
         print(f"Error during transaction: {str(e)}")
         return 'An error occurred during the transaction.'
+
+@app.route('/verify-integrity', methods=['GET'])
+def verify_integrity():
+    try:
+        keys = sorted(transactionRedis.keys('transaction_*'))
+        integrity_check_result = {}
+
+        for key in keys:
+            transaction_data = transactionRedis.get(key)
+            stored_hash_index = transaction_data.find("hash: ")
+
+            if stored_hash_index != -1:
+                # Extracting the stored hash from the transaction data
+                stored_hash = transaction_data[stored_hash_index + len("hash: "):]
+
+                # Extracting the transaction details without the stored hash
+                transaction_details = transaction_data[:stored_hash_index - 2]
+
+                # Extracting P1, P2, t, and a from the transaction details
+                parts = transaction_details.split(' ')
+                user_a_id = parts[0]
+                amount = parts[2]
+                user_b_id = parts[4]
+                timestamp = parts[6]
+
+                # Reconstructing the original tuple for hashing
+                transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount})"
+                
+                # Recalculate the hash based on the reconstructed tuple
+                recalculated_hash = sha256(transaction_tuple.encode()).hexdigest()
+
+                # Compare recalculated hash with stored hash
+                if recalculated_hash == stored_hash:
+                    integrity_check_result[key] = "Integrity verified: Hashes match"
+                else:
+                    integrity_check_result[key] = "Integrity check failed: Hash mismatch"
+
+        return jsonify(integrity_check_result)
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 
