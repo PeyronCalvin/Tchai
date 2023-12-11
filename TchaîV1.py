@@ -108,7 +108,7 @@ def transaction(a, b, amount):
                 # Record transaction details in the 'transaction' Redis database
                 timestamp = datetime.now().timestamp()
                 transaction_key = f"transaction_{timestamp}"
-                transaction_data = f"{user_a_id} gave {amount} to {user_b_id}"
+                transaction_data = f"{user_a_id} gave {amount} to {user_b_id} at {timestamp}"
                 transactionRedis.set(transaction_key, transaction_data)
 
                 return f"Transaction successful. User {user_a_id} sent {amount} to User {user_b_id}!"
