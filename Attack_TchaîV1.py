@@ -14,8 +14,9 @@ for key in keys_to_update:
     current_value = transactionRedis.get(key)
     parts = current_value.split(' ')
     user_a_id = parts[0]
+    user_b_id = parts[1]
     amount = "0"
-    user_b_id = parts[4]
-    updated_value = user_a_id + " gave " + amount + " to " + user_b_id + " at " + parts[6]
+    timestamp = parts[3]
+    updated_value = user_a_id + " " + user_b_id + " " + amount + " " + timestamp
     transactionRedis.set(key, updated_value)
     print(f"Updated {key} to {updated_value}")
