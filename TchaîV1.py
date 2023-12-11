@@ -24,8 +24,8 @@ transactionRedis = redis.Redis(
 	decode_responses=True
 )
 #Decomment the following line if you want to reset the database
-#user.flushdb()
-#transactionRedis.flushdb()
+user.flushdb()
+transactionRedis.flushdb()
 
 @app.route('/register-<name>', methods=['POST'])
 def register(name):
