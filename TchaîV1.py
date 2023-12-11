@@ -27,7 +27,7 @@ transactionRedis = redis.Redis(
 #user.flushdb()
 #transactionRedis.flushdb()
 
-@app.route('/register-<name>', methods=['GET','POST'])
+@app.route('/register-<name>', methods=['POST'])
 def register(name):
     name = str(name)
 
