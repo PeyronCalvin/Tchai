@@ -102,11 +102,13 @@ def transaction(a, b, amount):
                 # Record transaction details in the 'transaction' Redis database
                 timestamp = datetime.now().timestamp()
                 transaction_key = f"transaction_{timestamp}"
-                transaction_data = f"{user_a_id} gave {amount} to {user_b_id}"
                 transaction_data = f"{user_a_id} {user_b_id} {amount} {timestamp}"
                 transactionRedis.set(transaction_key, transaction_data)
+                
+                usera_name = user.get('name' + str(user_a_id))
+                userb_name = user.get('name' + str(user_b_id))
 
-                return f"Transaction successful. User {user_a_id} sent {amount} to User {user_b_id}!"
+                return f"Transaction successful. User {usera_name} sent {amount} to User {userb_name}!"
             else:
                 return "Not enough money for transaction."
         else:
@@ -114,6 +116,7 @@ def transaction(a, b, amount):
     except Exception as e:
         print(f"Error during transaction: {str(e)}")
         return 'An error occurred during the transaction.'
+
 
 
 
