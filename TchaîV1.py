@@ -53,11 +53,10 @@ def showUsers():
         data = {}
 
         for key in keys:
-            if key != 'nameAlreadyTaken':
-                user_id = key.split('name')[-1]
-                name = user.get(key)
-                balance = str(user.get('balance' + user_id))
-                data[user_id] = {'name': name, 'balance': balance}
+            user_id = key.split('name')[-1]
+            name = user.get(key)
+            balance = str(user.get('balance' + user_id))
+            data[user_id] = {'name': name, 'balance': balance}
 
         return jsonify(data)  # Move this line outside the loop
     except Exception as e:
@@ -104,6 +103,7 @@ def transaction(a, b, amount):
                 timestamp = datetime.now().timestamp()
                 transaction_key = f"transaction_{timestamp}"
                 transaction_data = f"{user_a_id} gave {amount} to {user_b_id}"
+                transaction_data = f"{user_a_id} {user_b_id} {amount} {timestamp}"
                 transactionRedis.set(transaction_key, transaction_data)
 
                 return f"Transaction successful. User {user_a_id} sent {amount} to User {user_b_id}!"
