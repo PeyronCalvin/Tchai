@@ -35,14 +35,9 @@ def register(name):
         # Retrieve the current user ID from the Redis database
         id_user = int(user.get('id') or 0)
 
-        # Check if the user name is already taken
-        if user.sismember('nameAlreadyTaken', name):
-            return 'Registration is not possible with this name, choose another one.'
-
         # Update the user data in the database
-        user.sadd('nameAlreadyTaken', name)
         user.set('id', id_user + 1)
-        user.set('name' + str(id_user), name)
+        user.set('name', name)
         user.set('balance' + str(id_user), 1000)
 
         return 'Registration successful!'
