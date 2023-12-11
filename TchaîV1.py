@@ -30,14 +30,14 @@ transactionRedis.flushdb()
 @app.route('/register-<name>', methods=['POST'])
 def register(name):
     name = str(name)
-
+    
     try:
         # Retrieve the current user ID from the Redis database
         id_user = int(user.get('id') or 0)
-
+        
         # Update the user data in the database
         user.set('id', id_user + 1)
-        user.set('name', name)
+        user.set('name'+ str(id_user), name)
         user.set('balance' + str(id_user), 1000)
 
         return 'Registration successful!'
