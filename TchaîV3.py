@@ -110,13 +110,17 @@ def transaction(a, b, amount):
                 timestamp = datetime.now().timestamp()
                 transaction_key = f"transaction_{timestamp}"
                 transaction_data = f"{user_a_id} {user_b_id} {amount} {timestamp}"
-
-                # Create a hash for the transaction tuple (P1, P2, t, a)
-                transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount})"
+                previous_hash = transactionRedis.get('hash')
+                # Create a hash for the transaction tuple (P1, P2, t, a, h)
+                if previous_hash:
+                    transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount},{previous_hash})"
+                else:
+                    transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount})"
                 transaction_hash = sha256(transaction_tuple.encode()).hexdigest()
 
                 # Append the hash to the transaction data
                 transaction_data_with_hash = f"{transaction_data} {transaction_hash}"
+                transactionRedis.set('hash', transaction_hash)
 
                 # Set the transaction data in Redis
                 transactionRedis.set(transaction_key, transaction_data_with_hash)
@@ -136,7 +140,7 @@ def verify_integrity():
         keys = sorted(transactionRedis.keys('transaction_*'))
         integrity_check_result = {}
 
-        for key in keys:
+        for i, key in enumerate(keys):
             transaction_data = transactionRedis.get(key)
             parts = transaction_data.split(' ')
 
@@ -151,8 +155,13 @@ def verify_integrity():
                 timestamp = parts[3]
 
                 # Reconstructing the original tuple for hashing
-                transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount})"
-                
+                if i!=0:
+                    previous_transaction = transactionRedis.get(keys[i-1])
+                    previous_hash = previous_transaction.split(' ')[4]
+                    transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount},{previous_hash})"
+                else:
+                    transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount})"
+
                 # Recalculate the hash based on the reconstructed tuple
                 recalculated_hash = sha256(transaction_tuple.encode()).hexdigest()
 
@@ -172,7 +181,7 @@ def verify_integrity():
 @app.route('/history', methods=["GET"])
 def history():
     try:
-        keys = sorted(transactionRedis.keys('*'), key=lambda x: float(x.split('_')[-1]))
+        keys = sorted(transactionRedis.keys('transaction_*'), key=lambda x: float(x.split('_')[-1]))
         lines = []
 
         for key in keys:
