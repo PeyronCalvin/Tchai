@@ -1,7 +1,7 @@
 
 # Tchaî - CCC project
 
-![Tchaî](https://github.com/PeyronCalvin/Tchai_PEYRON_Calvin_LOPES_CASTANHEIRA_Marcelo/blob/main/Images/Tchaî.jpg?raw=true)
+![Tchaî](https://github.com/PeyronCalvin/Tchai_PEYRON_Calvin_LOPES-CASTANHEIRA_Marcelo/blob/main/Images/Tcha%C3%AE.jpg)
 
 ## Purpose of this project
 
