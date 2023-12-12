@@ -25,25 +25,20 @@ transactionRedis = redis.Redis(
 	decode_responses=True
 )
 #Decomment the following line if you want to reset the database
-user.flushdb()
-transactionRedis.flushdb()
+#user.flushdb()
+#transactionRedis.flushdb()
 
-@app.route('/register-<name>', methods=['GET','POST'])
+@app.route('/register-<name>', methods=['POST'])
 def register(name):
     name = str(name)
-
+    
     try:
         # Retrieve the current user ID from the Redis database
         id_user = int(user.get('id') or 0)
-
-        # Check if the user name is already taken
-        if user.sismember('nameAlreadyTaken', name):
-            return 'Registration is not possible with this name, choose another one.'
-
+        
         # Update the user data in the database
-        user.sadd('nameAlreadyTaken', name)
         user.set('id', id_user + 1)
-        user.set('name' + str(id_user), name)
+        user.set('name'+ str(id_user), name)
         user.set('balance' + str(id_user), 1000)
 
         return 'Registration successful!'
@@ -59,13 +54,12 @@ def showUsers():
         data = {}
 
         for key in keys:
-            if key != 'nameAlreadyTaken':
-                user_id = key.split('name')[-1]
-                name = user.get(key)
-                balance = str(user.get('balance' + user_id))
-                data[user_id] = {'name': name, 'balance': balance}
+            user_id = key.split('name')[-1]
+            name = user.get(key)
+            balance = str(user.get('balance' + user_id))
+            data[user_id] = {'name': name, 'balance': balance}
 
-        return jsonify(data)  # Move this line outside the loop
+        return jsonify(data)
     except Exception as e:
         print(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
