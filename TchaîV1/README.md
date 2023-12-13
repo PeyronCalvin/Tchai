@@ -14,9 +14,9 @@
   - how it works: return a json composed of each user under a json format. The key which defined each user is its id and the values are the name and the balance.
   - errors: errors while retrieving users are treated and will appear in the console logs.
 
--showUser:
+- showUser:
   - parameters: a (user's id)
-  -how it works: search among all users the values linked with the id provided and return a json of this user.
+  - how it works: search among all users the values linked with the id provided and return a json of this user.
   - errors: errors while retrieving the specified user are treated and will appear in the console logs.
 
 - transaction:
