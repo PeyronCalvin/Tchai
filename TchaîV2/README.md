@@ -30,12 +30,12 @@
 
 - history: 
   - how it works: every transaction is retrievied and a json of all transactions is returned, it is automatically sorted in a chronological order
-  - errors: errors while retrieving transacions are treated and will appear in the console logs. 
+  - errors: errors while retrieving transactions are treated and will appear in the console logs. 
 
 - historyOf:
   - parameters: a (user's id)
   - how it works: retrieve every transaction made by a user under a json format, it is automatically sorted in a chronological order.
-  - errors: errors while retrieving transacions are treated and will appear in the console logs. 
+  - errors: errors while retrieving transactions are treated and will appear in the console logs. 
 
 
 ### Routes
@@ -73,6 +73,7 @@ curl -X POST 127.0.0.1:5000/transaction-0-1-100
 curl -X POST 127.0.0.1:5000/transaction-0-2-200
 curl -X GET 127.0.0.1:5000/history
 curl -X GET 127.0.0.1:5000/history-2
+curl -X GET 127.0.0.1:5000/verify-integrity
 ```
 
 ### Attack_TchaîV1.py
@@ -84,5 +85,3 @@ This attack won't work anymore, we can check it by following the protocol on Tch
 The concept of this attack is easily understandable, the goal is to delete a transaction to set it at 0. In order to do so, we suppose someone has access to the database, this person retrieves all the keys link to the transactions and delete the first transaction.
 
 In order to run the code, you just need to have the server and redis dockers up. You need also to have already created a few transactions to test it. When it's done, you just have to run the code.
-
-_Nota bene: if the server has only one transaction stored, this attack will work, we need to have at least two transactions in the database._
