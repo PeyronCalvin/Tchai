@@ -9,7 +9,7 @@ RUN apt-get update
 RUN apt-get install python3-pip -y
 RUN pip install -r requirements.txt
 
-ENV FLASK_APP=TchaîV4.py
+ENV FLASK_APP=TchaîV1.py
 ENV FLASK_ENV=development
 
 #Copie des fichiers de test

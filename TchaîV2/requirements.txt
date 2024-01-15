@@ -3,4 +3,3 @@ flask-cors
 redis
 requests
 datetime
-cryptography
