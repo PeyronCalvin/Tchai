@@ -6,8 +6,8 @@ import cryptography
 import requests
 import json
 
-user_a = 'hhh'
-user_b = 'oo'
+user_a = 'MonsieurA'
+user_b = 'MonsieurB'
 amount = '200'
 
 # Generate an RSA key pair
