@@ -5,6 +5,12 @@ import sys
 from datetime import datetime
 from hashlib import sha256
 
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+import cryptography
+
+
 app = Flask(__name__)
 app.secret_key = 'We_Like_Tchaî_To_Go_To_Gym'
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -25,23 +31,34 @@ transactionRedis = redis.Redis(
 	decode_responses=True
 )
 #Decomment the following line if you want to reset the database
-#user.flushdb()
-#transactionRedis.flushdb()
+user.flushdb()
+transactionRedis.flushdb()
 
 @app.route('/register-<name>', methods=['POST'])
 def register(name):
     name = str(name)
-    
+    public_key = request.data.decode('utf-8')
+
     try:
         # Retrieve the current user ID from the Redis database
         id_user = int(user.get('id') or 0)
-        
-        # Update the user data in the database
-        user.set('id', id_user + 1)
-        user.set('name'+ str(id_user), name)
-        user.set('balance' + str(id_user), 1000)
 
+        # Check if the user name is already taken
+        if user.sismember('nameAlreadyTaken', name):
+            return 'Registration is not possible with this name, choose another one.'
+
+        # Update the user data in the database
+        user.sadd('nameAlreadyTaken', name)
+        user.set('id', id_user + 1)
+        user.set('name' + str(id_user), name)
+        user.set('balance' + str(id_user), 1000)
+        
+        if public_key != "":
+            user.set('public_key' + str(id_user), public_key)
+            
         return 'Registration successful!'
+
+        
     except Exception as e:
         # Log the error for troubleshooting
         print(f"Error during registration: {str(e)}")
@@ -54,16 +71,16 @@ def showUsers():
         data = {}
 
         for key in keys:
-            user_id = key.split('name')[-1]
-            name = user.get(key)
-            balance = str(user.get('balance' + user_id))
-            data[user_id] = {'name': name, 'balance': balance}
+            if key != 'nameAlreadyTaken':
+                user_id = key.split('name')[-1]
+                name = user.get(key)
+                balance = str(user.get('balance' + user_id))
+                data[user_id] = {'name': name, 'balance': balance}
 
-        return jsonify(data) 
+        return jsonify(data)  # Move this line outside the loop
     except Exception as e:
         print(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
-    
 
 
 @app.route('/user-<int:a>', methods=['GET'])
@@ -82,14 +99,14 @@ def showUser(a):
         print(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
     
-
-
-@app.route('/transaction-<int:a>-<int:b>-<int:amount>', methods=['POST'])
-def transaction(a, b, amount):
+    
+@app.route('/transaction-<int:a>-<int:b>-<int:amount>-<signature>', methods=['POST'])
+def transaction(a, b, amount,signature):
+    signature = str(signature)
+    user_a_id = str(a)
+    user_b_id = str(b)
+    
     try:
-        user_a_id = str(a)
-        user_b_id = str(b)
-
         # Check if both users exist in the database
         if user.exists('name' + user_a_id) and user.exists('name' + user_b_id):
             user_a_balance = int(user.get('balance' + user_a_id) or 0)
@@ -105,18 +122,30 @@ def transaction(a, b, amount):
                 timestamp = datetime.now().timestamp()
                 transaction_key = f"transaction_{timestamp}"
                 transaction_data = f"{user_a_id} {user_b_id} {amount} {timestamp}"
-
-                # Create a hash for the transaction tuple (P1, P2, t, a)
-                transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount})"
+                previous_hash = transactionRedis.get('hash')
+                # Create a hash for the transaction tuple (P1, P2, t, a, h)
+                if previous_hash:
+                    transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount},{previous_hash})"
+                else:
+                    transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount})"
                 transaction_hash = sha256(transaction_tuple.encode()).hexdigest()
 
                 # Append the hash to the transaction data
                 transaction_data_with_hash = f"{transaction_data} {transaction_hash}"
+                transactionRedis.set('hash', transaction_hash)
 
-                # Set the transaction data in Redis
-                transactionRedis.set(transaction_key, transaction_data_with_hash)
+                message = user_a_id + user_b_id + str(amount)
+                public_key_str = user.get("public_key"+ user_a_id)
+                public_key = serialization.load_pem_public_key(public_key_str.encode('utf-8'), backend=default_backend())
 
-                return f"Transaction successful. User {user_a_id} sent {amount} to User {user_b_id}!"
+                
+                if(is_authentication_verified(public_key,message,signature)):
+                    # Set the transaction data in Redis
+                    transactionRedis.set(transaction_key, transaction_data_with_hash)
+                    
+                    return f"Transaction successful. User {user_a_id} sent {amount} to User {user_b_id}!"
+                else:
+                    return f"Signature is invalid"
             else:
                 return "Not enough money for transaction."
         else:
@@ -131,7 +160,7 @@ def verify_integrity():
         keys = sorted(transactionRedis.keys('transaction_*'))
         integrity_check_result = {}
 
-        for key in keys:
+        for i, key in enumerate(keys):
             transaction_data = transactionRedis.get(key)
             parts = transaction_data.split(' ')
 
@@ -146,8 +175,13 @@ def verify_integrity():
                 timestamp = parts[3]
 
                 # Reconstructing the original tuple for hashing
-                transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount})"
-                
+                if i!=0:
+                    previous_transaction = transactionRedis.get(keys[i-1])
+                    previous_hash = previous_transaction.split(' ')[4]
+                    transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount},{previous_hash})"
+                else:
+                    transaction_tuple = f"({user_a_id},{user_b_id},{timestamp},{amount})"
+
                 # Recalculate the hash based on the reconstructed tuple
                 recalculated_hash = sha256(transaction_tuple.encode()).hexdigest()
 
@@ -167,7 +201,7 @@ def verify_integrity():
 @app.route('/history', methods=["GET"])
 def history():
     try:
-        keys = sorted(transactionRedis.keys('*'), key=lambda x: float(x.split('_')[-1]))
+        keys = sorted(transactionRedis.keys('transaction_*'), key=lambda x: float(x.split('_')[-1]))
         lines = []
 
         for key in keys:
@@ -195,6 +229,24 @@ def historyOf(a):
     except Exception as e:
         print(f"Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+
+# Verify message authenticity with public key and signature
+def is_authentication_verified(public_key,message,signature):
+    try:
+        public_key.verify(
+            bytes.fromhex(signature),
+            message.encode('utf-8'),
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+        return True
+    except cryptography.exceptions.InvalidSignature:
+        return False
+
 
 
 if __name__ == '__main__':
